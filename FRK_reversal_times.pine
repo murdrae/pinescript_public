@@ -1,0 +1,48 @@
+//@version=6
+indicator('[FRK] Reversal Times', overlay = true, scale = scale.none)
+ 
+// Inputs
+// - Timezone fixed to America/New_York as requested
+// - Horizontal line drawn at the very top during the windows only
+tz = 'America/New_York'
+lineColor = input.color(color.rgb(64, 89, 173), 'Line color (dark pastel)')
+lineWidth = input.int(3, 'Line width (pixels)', minval = 1, maxval = 5)
+windowsStr = input.string('0045-0116,0145-0216,0845-0916,0945-1016,1045-1116', 'Windows (HHMM-HHMM, comma-separated)')
+showLines = input.bool(true, 'Show horizontal top line')
+// Digital root 3/6/9 under-lines (just below top, independent of windows)
+showDRLines = input.bool(true, 'Show digital-root under-lines (DR=3/6/9)')
+drLineColor = input.color(color.orange, 'Digital-root line color (orange)')
+drLineOffset = input.float(0.03, 'Digital-root offset from top (0..1)', minval = 0.001, maxval = 0.2, step = 0.001)
+drLineWidth = input.int(3, 'Digital-root line width (pixels)', minval = 1, maxval = 5)
+
+
+// Window detection (repeats every day in the specified timezone)
+inWindowBase = not na(time(timeframe.period, windowsStr, tz))
+inWindowTop = showLines and inWindowBase
+
+// Digital root computation in America/New_York (HHMM)
+hh = hour(time, tz)
+mm = minute(time, tz)
+hhmm = hh * 100 + mm
+dr = hhmm == 0 ? 0 : (hhmm % 9 == 0 ? 9 : hhmm % 9)
+isMidnight = hhmm == 0
+match3 = dr == 3
+match6 = dr == 6
+match9 = dr == 9 or isMidnight
+matchAny = match3 or match6 or match9
+
+// Anchor the overlay's internal scale to 0..1 so our y=1.0 truly maps to the top.
+// We draw fully transparent baseline plots that still influence scaling.
+_ = plot(0.0, title = 'baseBottom', color = color.new(color.black, 100), linewidth = math.max(1, 0), style = plot.style_linebr)
+__ = plot(1.0, title = 'baseTop', color = color.new(color.black, 100), linewidth = math.max(1, 0), style = plot.style_linebr)
+
+// Draw the top line only during windows; stays at the pane's top.
+pTop = plot(inWindowTop ? 1.0 : na, title = 'Top Line', style = plot.style_linebr, linewidth = math.max(1, lineWidth), color = lineColor)
+
+// Draw DR=3/6/9 under-lines just below top; shown on matching bars (not restricted to windows)
+pDR = plot(showDRLines and matchAny ? (1.0 - drLineOffset) : na, title = 'Digital Root 3/6/9 Under-Lines', style = plot.style_linebr, linewidth = math.max(1, drLineWidth), color = drLineColor)
+
+// Notes:
+// - The invisible base plots ensure the line stays at the very top and does NOT fill the pane.
+// - Adjust `Line width` and `Line color` as needed.
+// - Edit `Windows` to change time windows (interpreted in America/New_York).
